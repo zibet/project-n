@@ -1,3 +1,7 @@
+#!/usr/bin/python
+
+from __future__ import division
+
 import sys
 import re
 # map words x to labels y always picking the label with the highest
@@ -8,57 +12,79 @@ import re
 # 92 WORDTAG O reading
 # 5 WORDTAG I-GENE reading
 
-lines = open( "gene.counts" ).readlines()
-re_line = re.compile( r'^(\d+) WORDTAG (\S+) (\S+)' ); 
+# 345128 1-GRAM O
+# 13796 2-GRAM * *
+# 1813 3-GRAM I-GENE O STOP
 
-# map af words til (map tag->count)
-D = dict()
+lines = open( "RARE.gene.count" ).readlines()
 
-tagcounts = dict()
-tagcounts[ 'O' ] = 0;
-tagcounts[ 'I-GENE' ] = 0;
+re_wordtag = re.compile( r'^(\d+) WORDTAG (\S+) (\S+)' ); 
+re_gram = re.compile( r'^(\d+) ([123])-GRAM (.*)$' );
 
+
+
+# map: (tag, word) -> count
+emits = dict()
+
+# map (a,b,b) -> count
+grams = dict()
+
+words = set() # know words
 
 for line in lines:
     #print line
-    match = re.match( re_line, line )
-    if match:
-        count = int( match.group(1) );
-        tag = match.group( 2 );
-        word = match.group( 3 )        
-        d = dict()
-        d[ tag ] = count;
-        tagcounts[ tag ] += count
-        if not word in D:
-            D[ word ] = dict()
-        D[ word ][ tag ] = count
-        #print word , str( D[word] )
-# produce lines like:
-# nucleotidase I-GENE
-# Pharmacologic O
-
-#exit
+    wordtag_m = re.match( re_wordtag, line )
+    if wordtag_m:
+        count = int( wordtag_m.group(1) );
+        tag = wordtag_m.group( 2 );
+        word = wordtag_m.group( 3 )        
+        words.add( word )
+        emit = ( tag, word )
+        assert( not emit in emits )
+        emits[ emit ] = count
+        #print 'EMIT', emit, count
+        continue
+    gram_m = re.match( re_gram, line )
+    if gram_m:
+        count = int( gram_m.group(1) );
+        gtype = int( gram_m.group( 2 ) );
+        tags = gram_m.group( 3 ).split(' ')        
+        assert( len(tags) == gtype )
+        gram = tuple( tags )
+        grams[ gram ] = count
+        #print 'GRAM', gram, count
+        continue
+#exit()
 
 lines = open( "gene.dev" ).readlines()
 
+GENE = 'I-GENE'
+O = 'O'
+
+def e( word, tag ):
+    val = 0
+    key = ( tag, word )
+    if key in emits:
+        val = emits[ key ]
+    return val / grams[ (tag,) ]
+
+
 for wordline in lines:
     word = wordline.strip()
+    original = word
     if word == '':
         print
         continue
-    try:
-        d = D[ word ]
-    except KeyError:
-        d = D[ '_RARE_' ]
-    tag = 0
-    count = 0
-    for t,c in d.iteritems():
-        #print '>',word, t, c
-        tagcount = tagcounts[ t ]
-        ML = float(c) / tagcount
-        if tagcount > count:
-            tag = t
-            count = tagcount 
-    print word, tag
+    # calculate e(word, I-GENE)
+    # and e( word, O)
+    if not word in words:
+        word = '_RARE_'
+    E_GENE = e( word, GENE )
+    E_O = e( word, O )
+    tag = O
+    if E_GENE > E_O:
+        tag = GENE
+    print original, tag
+
 
 
