@@ -65,7 +65,7 @@ STAR = '*'
 RARE = '_RARE_'
 STOP = 'STOP'
 
-def e2( word, tag ):
+def e( word, tag ):
     val = 0
     key = ( tag, word )
     if key in emits:

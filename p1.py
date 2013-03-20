@@ -24,8 +24,8 @@ for wordline in sys.stdin:
     # and e( word, O)
     if not word in nlp.words:
         word = '_RARE_'
-    E_GENE = nlp.e2( word, nlp.GENE )
-    E_O = nlp.e2( word, nlp.O )
+    E_GENE = nlp.e( word, nlp.GENE )
+    E_O = nlp.e( word, nlp.O )
     tag = nlp.O
     if E_GENE > E_O:
         tag = nlp.GENE
