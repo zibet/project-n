@@ -5,6 +5,10 @@ from __future__ import division
 import sys
 import re
 
+emits = {}
+grams = {}
+
+words = set()
 
 def read_counts( filename ):
 
