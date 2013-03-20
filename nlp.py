@@ -7,7 +7,6 @@ import re
 
 emits = {}
 grams = {}
-
 words = set()
 
 def read_counts( filename ):
@@ -26,12 +25,12 @@ def read_counts( filename ):
     re_gram = re.compile( r'^(\d+) ([123])-GRAM (.*)$' );
 
     # map: (tag, word) -> count
-    emits = dict()
+    #emits = dict()
 
     # map (a)or (a,b) or (a,b,c) -> count
-    grams = dict()
+    #grams = dict()
 
-    words = set() # known words
+    #words = set() # known words
 
     for line in lines:
         #print line
@@ -66,17 +65,12 @@ STAR = '*'
 RARE = '_RARE_'
 STOP = 'STOP'
 
-def e( word, tag ):
+def e2( word, tag ):
     val = 0
     key = ( tag, word )
     if key in emits:
         val = emits[ key ]
-    else:
-        val = emits[ tag, RARE ]
-    r = val / grams[ (tag,) ]
-    #print 'e()', word, tag, '=', r
-    return r
-
+    return val / grams[ (tag,) ]
 
 def q(yi, yi_2, yi_1):
     """q(yi| yi_2, yi_1)"""
