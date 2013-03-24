@@ -23,7 +23,7 @@ for wordline in sys.stdin:
     # calculate e(word, I-GENE)
     # and e( word, O)
     if not word in nlp.words:
-        word = '_RARE_'
+        word = nlp.RARE
     E_GENE = nlp.e( word, nlp.GENE )
     E_O = nlp.e( word, nlp.O )
     tag = nlp.O
