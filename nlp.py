@@ -10,7 +10,6 @@ grams = {}
 words = set()
 
 def read_counts( filename ):
-
     # read lines like:
     # 92 WORDTAG O reading
     # 5 WORDTAG I-GENE reading
@@ -55,9 +54,16 @@ def read_counts( filename ):
             grams[ gram ] = count
             #print 'GRAM', gram, count
             continue
+    #print "grams: ", str( grams )
     return emits, grams, words
 
+def printer( d, name = '' ):
+    for k,v in sorted( d.iteritems() ):
+        print name, k, v
 
+def print_counts():
+    printer( grams, "GRAM" )
+    printer( emits, "EMIT" )
 
 GENE = 'I-GENE'
 O = 'O'
@@ -70,12 +76,14 @@ def e( word, tag ):
     key = ( tag, word )
     if key in emits:
         val = emits[ key ]
-    return val / grams[ (tag,) ]
+    r = val / grams[ (tag,) ]
+    print 'e( {%s} -> {%s} ) = {%f}' % (word, tag, r)
+    return r
 
 def q(yi, yi_2, yi_1):
     """q(yi| yi_2, yi_1)"""
     r = grams[ (yi_2, yi_1, yi) ] / grams[ (yi_2, yi_1) ]
-    #print 'q()', yi, yi_2, yi_1, '=', r
+    print 'q({%s}|{%s}, {%s}) = {%f}' % (yi, yi_2, yi_1, r)
     return r
 
 def K( n ):
@@ -85,14 +93,16 @@ def K( n ):
         return ( GENE, O)
 
 
-bp = dict()
+#bp = dict()
 
 def pi( k, u, v, xs ):
     if (k, u, v) in pis:
         #print "CACHED"
+        print "k {%s}, u {%s}, v {%s} = {%s} [CACHED]" % ( k, u, v, pis[ (k, u, v)] )
         return pis[ (k, u, v)]
     if ( k == 0 ):
-        #print "k {%s}, u {%s}, v {%s}" % ( k, u, v )
+        print "pi({%s}, {%s}, {%s}) {%f} argmax = {%s}" % ( k, u, v, 1, '-')
+        print "k {%s}, u {%s}, v {%s} = 1" % ( k, u, v )
         return 1
     #print "k {%s}, u {%s}, v {%s}, xk{%s}" % ( k, u, v, xs[k] )
     vs = dict() # value -> params
@@ -103,6 +113,7 @@ def pi( k, u, v, xs ):
         vs[ pi( k-1, w, u, xs) * qq * ee ] = w 
     maxx = max( vs.iterkeys() )
     pis[ (k, u, v) ] = maxx
+    print "pi({%s}, {%s}, {%s}) {%f} argmax = {%s}" % ( k, u, v, pis[ (k, u, v)], vs[ maxx ] )
     bp[ (k, u, v)] = vs[ maxx ]
     return maxx
 
@@ -111,6 +122,7 @@ bp = dict() # k -> { tags: (tags), value: n}
 
 
 def viterbi( xs ):
+    """read list of words, return list of corresponding tags"""
     ys = [ None for x in xs ]
     n = len( xs ) - 1
     for k in range(1, n+1 ):
@@ -139,14 +151,22 @@ def viterbi( xs ):
     return ys
 
 def viterbi_wrap( xs ):
+    print "VITERBI START:", xs
     ys = viterbi( [None] + xs) 
-    return ys[ 1: ]
+    r = ys[ 1: ]
+    print "VITERBI END:", xs, r
+    return r
 
 #viterbi( [ 'IGNORE', 'Third', ',', 'consistent' ])
 
 
-def do():
-    lines = open( "gene.dev" ).readlines()
+
+
+def do():    
+    read_counts( "RARE.gene.count" )
+
+    #lines = open( "gene.dev" ).readlines()
+    lines = open( "test-sentence" ).readlines()
 
     original = []
     sentence = []
@@ -163,9 +183,13 @@ def do():
             continue
         original.append( word )
         if not word in words:
-            word = '_RARE_'
+            word = RARE
         sentence.append( word )
 
-
+    if len( sentence ) > 0:
+        tags = viterbi_wrap( sentence )
+        for (word, tag) in zip( original, tags):
+            print word, tag
+        
 
 
