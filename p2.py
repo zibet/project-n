@@ -11,7 +11,9 @@ import nlp
 #exit()
 
 
-nlp.do()
+nlp.do( "gene.test" )
+#nlp.do( "test3.sentence" )
+#nlp.do( "test-sentence" )
 
 
 

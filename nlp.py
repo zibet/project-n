@@ -9,6 +9,10 @@ emits = {}
 grams = {}
 words = set()
 
+pis = dict()
+bp = dict() # k -> { tags: (tags), value: n}
+
+
 def read_counts( filename ):
     # read lines like:
     # 92 WORDTAG O reading
@@ -70,6 +74,9 @@ O = 'O'
 STAR = '*'
 RARE = '_RARE_'
 STOP = 'STOP'
+NUMERIC = '_NUMERIC_'
+ALLCAPS = '_ALLCAPS_'
+LASTCAP = '_LASTCAP_'
 
 def e( word, tag ):
     val = 0
@@ -77,13 +84,14 @@ def e( word, tag ):
     if key in emits:
         val = emits[ key ]
     r = val / grams[ (tag,) ]
-    print 'e( {%s} -> {%s} ) = {%f}' % (word, tag, r)
+    if r == 0:
+        print '# ZERO E( {%s} -> {%s} ) = {%f}' % (word, tag, r)
     return r
 
 def q(yi, yi_2, yi_1):
     """q(yi| yi_2, yi_1)"""
     r = grams[ (yi_2, yi_1, yi) ] / grams[ (yi_2, yi_1) ]
-    print 'q({%s}|{%s}, {%s}) = {%f}' % (yi, yi_2, yi_1, r)
+    #print '# q({%s}|{%s}, {%s}) = {%f}' % (yi, yi_2, yi_1, r)
     return r
 
 def K( n ):
@@ -92,18 +100,22 @@ def K( n ):
     else:
         return ( GENE, O)
 
-
-#bp = dict()
-
 def pi( k, u, v, xs ):
-    if (k, u, v) in pis:
-        #print "CACHED"
-        print "k {%s}, u {%s}, v {%s} = {%s} [CACHED]" % ( k, u, v, pis[ (k, u, v)] )
-        return pis[ (k, u, v)]
+    global pis
+    global bp
     if ( k == 0 ):
-        print "pi({%s}, {%s}, {%s}) {%f} argmax = {%s}" % ( k, u, v, 1, '-')
-        print "k {%s}, u {%s}, v {%s} = 1" % ( k, u, v )
+        print "# pi(%s, %s, %s) %s argmax = %s" % ( k, u, v, 1, '-')
+        #print "k %s, u %s, v %s = 1" % ( k, u, v )
         return 1
+    #cacheline = None
+    cacheval = None
+    if (k, u, v) in pis:
+        #cacheline = "CACHE: pi(%s, %s, %s) %s " % ( k, u, v, pis[ (k, u, v)] )
+        cacheval = pis[ (k, u, v)]
+        return cacheval
+    #    print "k {%s}, u {%s}, v {%s} = {%s} [CACHED]" % ( k, u, v, pis[ (k, u, v)] )
+    #    return pis[ (k, u, v)]
+    
     #print "k {%s}, u {%s}, v {%s}, xk{%s}" % ( k, u, v, xs[k] )
     vs = dict() # value -> params
     for w in K( k-2 ):
@@ -111,34 +123,67 @@ def pi( k, u, v, xs ):
         ee = e(xs[k], v)
         #print 'qq', qq, 'ee', ee
         vs[ pi( k-1, w, u, xs) * qq * ee ] = w 
-    maxx = max( vs.iterkeys() )
-    pis[ (k, u, v) ] = maxx
-    print "pi({%s}, {%s}, {%s}) {%f} argmax = {%s}" % ( k, u, v, pis[ (k, u, v)], vs[ maxx ] )
-    bp[ (k, u, v)] = vs[ maxx ]
-    return maxx
+    print "# KEYS:", str( sorted(list(vs.iteritems())) )
+    maxval = max( vs.iterkeys() )
+    if maxval > 0:
+        pis[ (k, u, v) ] = maxval
+    else:
+        pis[ (k, u, v) ] = 0
+    maxtag = vs[ maxval]
+    print "# MAXVAL:", maxval, "TAG:", maxtag 
 
-pis = dict()
-bp = dict() # k -> { tags: (tags), value: n}
+    #if cacheline:
+    #    print cacheline
+    #    if cacheval != maxx:
+    #        print "!!!!!!!!!!!!!!!!!!!!"
+    print "# pi(%s, %s, %s) %s argmax = %s" % ( k, u, v, pis[ (k, u, v)], maxtag )
+    bp[ (k, u, v)] = maxtag
+    return maxval
+
 
 
 def viterbi( xs ):
     """read list of words, return list of corresponding tags"""
+
+    global pis
+    global bp
+    pis = {}
+    bp = {}
+
     ys = [ None for x in xs ]
     n = len( xs ) - 1
     for k in range(1, n+1 ):
         for u in K( k-1 ):
             for v in K( k ):
                 pi( k, u, v, xs )
-    value = 0
-    for u in K( n-1 ):
+
+    value = 0    
+    print "# LAST ======================"
+
+    ys[ n-1 ] = O
+    ys[ n ] = O
+
+
+    for u in K( n-1 ):        
         for v in K ( n ):
             val =  pis[ (n, u, v) ] * q( STOP, u, v)
+            print "# LAST VALUE ( %s, %s, STOP): %s" % (u, v, val)
             if val > value:
+                print "# LAST UPDATE"
                 ys[ n-1 ] = u
                 ys[ n ] = v
+                value = val
+
     #print ys
     for k in reversed( range(1, (n-2) + 1) ):
-        ys[ k ] = bp[ k+2, ys[ k+ 1], ys[ k+2 ] ] 
+        yk1 = ys[ k+1 ]
+        yk2 = ys[ k+2 ]
+        backp = bp[ k+2, yk1, yk2 ] 
+
+        print "# REVERSE: k=%s k+2=%s yk1=%s yk2=%s bp=%s" % (k, k+2, yk1, yk2, backp)
+        
+        #ys[ k ] = bp[ k+2, ys[ k+1], ys[ k+2 ] ] 
+        ys[ k ] = backp 
             #pis[ (4, v, STOP) ] = value
             #print "????", value, (n,u,v)
             #if not 4 in bp or bp[ 4 ]['value'] < value:
@@ -151,22 +196,28 @@ def viterbi( xs ):
     return ys
 
 def viterbi_wrap( xs ):
-    print "VITERBI START:", xs
-    ys = viterbi( [None] + xs) 
-    r = ys[ 1: ]
-    print "VITERBI END:", xs, r
-    return r
+    print "# VITERBI START: ", xs
+    print "# LENGTH: ", len( xs )
+    xss = [None] + xs
+    yss = viterbi( xss ) 
+    ys = yss[ 1: ]
+    print "# VITERBI :", zip( xss, yss)
+    print "# VITERBI END:", zip( xs, ys )
+    return ys
 
 #viterbi( [ 'IGNORE', 'Third', ',', 'consistent' ])
 
 
 
+re_numeric = re.compile( r'\d' );
+re_allcaps = re.compile( r'^[A-Z]+$' );
+re_lastcap = re.compile( r'[A-Z]$' );
 
-def do():    
-    read_counts( "RARE.gene.count" )
+def do( filename ):    
+    read_counts( "CLASSES.gene.count" )
 
     #lines = open( "gene.dev" ).readlines()
-    lines = open( "test-sentence" ).readlines()
+    lines = open( filename ).readlines()
 
     original = []
     sentence = []
@@ -183,7 +234,16 @@ def do():
             continue
         original.append( word )
         if not word in words:
-            word = RARE
+            # re.match( re_wordtag, line )
+            if re.search( re_numeric, word ):
+                word = NUMERIC
+            elif re.search( re_allcaps, word ): 
+                word = ALLCAPS
+            elif re.search( re_lastcap, word ):             
+                word = LASTCAP
+            else:
+                word = RARE
+            print "# RARE WORD:", word
         sentence.append( word )
 
     if len( sentence ) > 0:
