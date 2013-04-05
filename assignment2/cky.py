@@ -84,68 +84,6 @@ def q2( ml, x, w ):
 
 RARE = '_RARE_'
 
-def cky_parse( sentence, words, bins ):
-    table = {}
-    bp = {}
-    sentence_rare = [ replace_rare(words, word) for word in sentence ]
-    for j in range(1, len( sentence_rare )+1 ):
-        word = sentence_rare[ j - 1]
-        original_word = sentence[ j - 1]
-        #print "original word", word
-        table[ (j-1, j) ] = words[ word ]
-        bp[ ( j-1, j ) ] = original_word
-        for i in reversed( range(0, (j-2)+1) ):
-            for k in range(i+1, (j-1)+1 ):
-                key = (i, j)
-                if not key in table:
-                    table[key] = set()
-                for B in table[ (i, k) ]: 
-                    for C in table[ (k,j) ]:
-                        if (B, C) in bins:
-                            for A in bins[ ( B, C ) ]:
-                                table[ key ].add( A )
-                                bp[ (i,j, A )] = ((i,k,B), (k,j,C))
-    return table,bp
-
-
-def cky_prob( sentence, words, bins ):
-    table = {}
-    bp = {}
-    sentence_rare = [ replace_rare(words, word) for word in sentence ]
-    for j in range(1, len( sentence_rare )+1 ):
-        word = sentence_rare[ j - 1]
-        original_word = sentence[ j - 1]
-        #print "original word", word
-        # define p=1
-        foo = table[ (j-1, j) ] = [ (tag, q2( ml, tag, word) ) for tag in words[ word ]] # tag list
-        #print "FOO", foo
-        bp[ ( j-1, j ) ] = original_word
-        for i in reversed( range(0, (j-2)+1) ):
-            for k in range(i+1, (j-1)+1 ):
-                key = (i, j)
-                if not key in table:
-                    table[key] = set()
-                for (B,pb) in table[ (i, k) ]: 
-                    for (C,pc) in table[ (k,j) ]:
-                        if (B, C) in bins:
-                            maxA= None
-                            maxP = 0
-                            for A in bins[ ( B, C ) ]:
-                                p = q1( ml, A, B, C) * pb *pc
-                                if p > maxP:
-                                    maxP = p
-                                    maxA = A
-                            table[ key ] = set( [( maxA, maxP )] )
-                            #bp[ (i,j, maxA )] = ((i,k,B), (k,j,C))
-                            bp[ (i,j) ] = ( maxA, B, C, (i,k), (k,j) )
-                                #print type(pb)
-                                #print type(pc)
-                                #p = q1( ml, A, B, C ) * pb * pc 
-                                
-
-                            #print "bar", table[ key ]
-    return table,bp
-
 
 def backtrack2( bp, key, S ):
     (i,j) = key
@@ -199,31 +137,6 @@ def replace_rare( words, word ):
     if word in words:
         return word
     return RARE
-
- 
-def backtrack_old( bp, t ):
-    #(start, end, SYMBOL)
-    #logging.warn( "T"+str(t))
-    if len(t) == 3:
-        return [ t[0], backtrack(bp, bp[t][1]), backtrack(bp, bp[t][2]) ]
-    else:
-        assert len(t) == 1
-        word = bp[(t[0], t[1])]
-        return [ t[2], word ]
-
- 
-def backtrack( bp, rang ):
-    #rang: (start, end)
-    t = bp[ rang ]
-    if type(t) == str:
-        return t # word         
-        # t: symbol ( rang) ( rang )
-    else:
-        #bp[ (i,j) ] = ( maxA, B, C, (i,k), (k,j) )        
-        (A, B, C, r1, r2) = t
-        return [ A, [B, backtrack(bp, r1)], [C, backtrack(bp, r2)] ]
-
-
 
 
 if __name__ == "__main__":
