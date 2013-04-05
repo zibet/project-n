@@ -44,7 +44,7 @@ def readCounts( filename ):
         if m:
             count = m.group(1)
             X = m.group(2)
-            logging.warn( "nonterminal %s: %s" % ( X, count ) )
+            logging.debug( "nonterminal %s: %s" % ( X, count ) )
             key = ( X, )
             insert( key, count )
             continue
@@ -53,7 +53,7 @@ def readCounts( filename ):
             count = m.group(1)
             X = m.group(2)
             Y = m.group(3)
-            logging.warn( "unary %s -> %s: %s" % ( X, Y, count ) )
+            logging.debug( "unary %s -> %s: %s" % ( X, Y, count ) )
             key = X, Y
             insert( key, count )
             insert_word( Y, X )
@@ -64,14 +64,14 @@ def readCounts( filename ):
             X = m.group(2)
             Y1 = m.group(3)
             Y2 = m.group(4)
-            logging.warn( "binary %s -> %s %s: %s" % ( X, Y1, Y2, count ) )
+            logging.debug( "binary %s -> %s %s: %s" % ( X, Y1, Y2, count ) )
             key = X, Y1, Y2
             insert( key, count )
             insert_bin( X, Y1, Y2 )
             continue
         logging.fatal( "????"+line)
         raise invalid_line
-    logging.warn( "lines: %s dict len: %s" % ( lines, len( ml )))
+    logging.debug( "lines: %s dict len: %s" % ( lines, len( ml )))
     return (ml, words, bins)
 
 def q1( d, x, y1, y2 ):
@@ -85,10 +85,12 @@ RARE = '_RARE_'
 def cky_parse( sentence, words, bins ):
     table = {}
     bp = {}
-    for j in range(1, len( sentence ) ):
-        word = sentence[ j - 1]
+    sentence_rare = [ replace_rare(words, word) for word in sentence ]
+    for j in range(1, len( sentence_rare ) ):
+        word = sentence_rare[ j - 1]
+        original_word = sentence[ j - 1]
         table[ (j-1, j) ] = words[ word ]
-        bp[ ( j-1, j ) ] = word
+        bp[ ( j-1, j ) ] = original_word
         for i in reversed( range(0, (j-2)+1) ):
             for k in range(i+1, (j-1)+1 ):
                 key = (i, j)
@@ -101,38 +103,6 @@ def cky_parse( sentence, words, bins ):
                                 table[ key ].add( A )
                                 bp[ (i,j, A )] = ((i,k,B), (k,j,C))
     return table,bp
-
-def cky_parse2( sentence, words, bins ):
-    parse = {}
-    # first fill in tags of speech
-    level = 0
-    for i in range(0, len( sentence ) ):
-        word = sentence[ i ]
-        parse[ ( level, i ) ] = words[ word]
-    # the other levels
-    for level in range(1, len( sentence) ):
-        #print "level", level
-        for i in range(0, (len( sentence) - level) ):
-            #print "i", i
-            # depends on level-1 place i and i+1
-            parse[ ( level, i )] = set()
-            for B in parse[ (level-1, i) ]:
-                for C in parse[ (level-1, i+1) ]:
-                    #print "B", B, "C", C
-                    if (B, C) in bins:
-                        for A in bins[ ( B, C ) ]:
-                            #print "A", A
-                            parse[ (level, i) ].add( A )
-    return parse
-
-def hail( sentence, parse ):
-    for level in range( 0, len( sentence )):
-        print "================================ level", level
-        for i in range(0, len(sentence)-level-1):
-            print i, parse[(level, i+1)]
-
-
-
  
 def get_element( set_ ):
     """return an element from the set"""
@@ -146,19 +116,14 @@ def replace_rare( words, word ):
 
 cc = 0
 
+
 def backtrack( bp, t ):
-    global cc
     #(start, end, SYMBOL)
-    me = cc
-    cc += 1
     if t in bp:
-        print "<< %s %s" % (me, t)
-        backtrack(bp, bp[t][0])
-        backtrack(bp, bp[t][1])
-        print "%s >>" % me
+        return [ t[2], backtrack(bp, bp[t][0]), backtrack(bp, bp[t][1]) ]
     else:
         word = bp[(t[0], t[1])]
-        print "<< %s %s %s>>" % (me, t, word)
+        return [ t[2], word ]
 
 if __name__ == "__main__":
     # setup counts
@@ -175,12 +140,9 @@ if __name__ == "__main__":
 
     for line in sys.stdin:
         sentence = line.split()        
-        print "======================="
-        print sentence
-        s2 = [ replace_rare(words, word) for word in sentence ]
-        print s2
-        (table, bp) = cky_parse( s2, words, bins )
-        backtrack(bp, (0, 12, 'SBARQ'))
+        #logging.warn( sentence )
+        (table, bp) = cky_parse( sentence, words, bins )
+        print backtrack(bp, (0, 12, 'SBARQ'))
         
         exit(0)
         for k,v in sorted( table.iteritems()):
