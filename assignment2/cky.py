@@ -25,6 +25,7 @@ def readCounts( filename ):
     words = {} # seen words, mapped to possible tags of speech
     bins = {} # map from BC to possible As from binaries: A -> B C
     def insert( key, count ):
+        count = int( count )
         if key in ml:
             ml[ key ] += count
         else:
@@ -75,11 +76,11 @@ def readCounts( filename ):
     logging.debug( "lines: %s dict len: %s" % ( lines, len( ml )))
     return (ml, words, bins)
 
-def q1( d, x, y1, y2 ):
-    return d[ ( x, y1, y2)] /d[(x,)]
+def q1( ml, x, y1, y2 ):
+    return ml[ ( x, y1, y2)] / ml[(x,) ]
 
-def q2(d, x, w):
-    return d[(x, w)] / d[x]
+def q2( ml, x, w ):
+    return ml[ (x, w)] / ml[(x,) ]
 
 RARE = '_RARE_'
 
@@ -105,6 +106,89 @@ def cky_parse( sentence, words, bins ):
                                 table[ key ].add( A )
                                 bp[ (i,j, A )] = ((i,k,B), (k,j,C))
     return table,bp
+
+
+def cky_prob( sentence, words, bins ):
+    table = {}
+    bp = {}
+    sentence_rare = [ replace_rare(words, word) for word in sentence ]
+    for j in range(1, len( sentence_rare )+1 ):
+        word = sentence_rare[ j - 1]
+        original_word = sentence[ j - 1]
+        #print "original word", word
+        # define p=1
+        foo = table[ (j-1, j) ] = [ (tag, q2( ml, tag, word) ) for tag in words[ word ]] # tag list
+        #print "FOO", foo
+        bp[ ( j-1, j ) ] = original_word
+        for i in reversed( range(0, (j-2)+1) ):
+            for k in range(i+1, (j-1)+1 ):
+                key = (i, j)
+                if not key in table:
+                    table[key] = set()
+                for (B,pb) in table[ (i, k) ]: 
+                    for (C,pc) in table[ (k,j) ]:
+                        if (B, C) in bins:
+                            maxA= None
+                            maxP = 0
+                            for A in bins[ ( B, C ) ]:
+                                p = q1( ml, A, B, C) * pb *pc
+                                if p > maxP:
+                                    maxP = p
+                                    maxA = A
+                            table[ key ] = set( [( maxA, maxP )] )
+                            #bp[ (i,j, maxA )] = ((i,k,B), (k,j,C))
+                            bp[ (i,j) ] = ( maxA, B, C, (i,k), (k,j) )
+                                #print type(pb)
+                                #print type(pc)
+                                #p = q1( ml, A, B, C ) * pb * pc 
+                                
+
+                            #print "bar", table[ key ]
+    return table,bp
+
+
+def backtrack2( bp, key, S ):
+    (i,j) = key
+    entry = bp[ key ][ S ]
+    if type( entry ) == str:
+        return [ S, entry ] # word         
+    else:
+        (k, B, C) = entry
+        return [ S, backtrack2(bp, (i,k), B), backtrack2(bp, (k,j), C) ]
+
+
+
+def cky_prob2( sentence, words, bins ):
+    table = {}
+    bp = {}
+    sentence_rare = [ replace_rare(words, word) for word in sentence ]
+    for j in range(1, len( sentence_rare )+1 ):
+        word = sentence_rare[ j - 1]
+        original_word = sentence[ j - 1]
+        key = (j-1, j)
+        if not key in table:
+            table[ key ] = {}
+            bp[ key ] = {}
+        for A in words[ word ]: # tag list
+            table[ key ][A] = q2( ml, A, word ) 
+            bp[ key ][A] = original_word 
+        for i in reversed( range(0, (j-2)+1) ):
+            for k in range(i+1, (j-1)+1 ):
+                if (i,k) in table and (k,j) in table:
+                    for B,pB in table[ (i,k) ].iteritems(): 
+                        for C,pC in table[ (k,j) ].iteritems():
+                            if (B, C) in bins:
+                                if not ( i, j ) in table:
+                                    table[(i,j)] = {}
+                                    bp[(i,j)] = {}
+                                for A in bins[ ( B, C ) ]:
+                                    p = q1( ml, A, B, C) * pB * pC
+                                    if (not A in table[(i,j)]) or (p > table[ (i, j) ][A]):
+                                        table[ (i, j) ][A] = p
+                                        bp[ (i,j) ][A] = (k, B, C)
+    return table,bp
+
+
  
 def get_element( set_ ):
     """return an element from the set"""
@@ -116,16 +200,31 @@ def replace_rare( words, word ):
         return word
     return RARE
 
-cc = 0
-
-
-def backtrack( bp, t ):
+ 
+def backtrack_old( bp, t ):
     #(start, end, SYMBOL)
-    if t in bp:
-        return [ t[2], backtrack(bp, bp[t][0]), backtrack(bp, bp[t][1]) ]
+    #logging.warn( "T"+str(t))
+    if len(t) == 3:
+        return [ t[0], backtrack(bp, bp[t][1]), backtrack(bp, bp[t][2]) ]
     else:
+        assert len(t) == 1
         word = bp[(t[0], t[1])]
         return [ t[2], word ]
+
+ 
+def backtrack( bp, rang ):
+    #rang: (start, end)
+    t = bp[ rang ]
+    if type(t) == str:
+        return t # word         
+        # t: symbol ( rang) ( rang )
+    else:
+        #bp[ (i,j) ] = ( maxA, B, C, (i,k), (k,j) )        
+        (A, B, C, r1, r2) = t
+        return [ A, [B, backtrack(bp, r1)], [C, backtrack(bp, r2)] ]
+
+
+
 
 if __name__ == "__main__":
     # setup counts
@@ -142,18 +241,17 @@ if __name__ == "__main__":
 
     for line in sys.stdin:
         sentence = line.split()        
+        #logging.warn( str(sentence) + " "+str(len(sentence)) )
         #print sentence
         #print 'len', len(sentence)
-        (table, bp) = cky_parse( sentence, words, bins )
-        print json.dumps( backtrack(bp, (0, len( sentence ), 'SBARQ')) )
-        
-        #exit(0)
-
-        # for k,v in sorted( table.iteritems()):
-        #     print "table", k, v
-        # for k,v in sorted( bp.iteritems()):
-        #     print "bp",k, v
-
+        (table, bp) = cky_prob2( sentence, words, bins )
+        if False:
+            for k,v in sorted( table.iteritems()):
+                print "table", k, v
+            for k,v in sorted( bp.iteritems()):
+                print "bp",k, v
+        print json.dumps( backtrack2(bp, (0, len( sentence )), 'SBARQ') )
+                
         #hail( sentence, t)
 
         #for w in sentence:
