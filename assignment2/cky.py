@@ -6,6 +6,7 @@ from __future__ import division
 import sys
 import re
 import logging
+import json
 logging.getLogger().setLevel( logging.WARNING )
 
 class invalid_line( Exception ):
@@ -86,9 +87,10 @@ def cky_parse( sentence, words, bins ):
     table = {}
     bp = {}
     sentence_rare = [ replace_rare(words, word) for word in sentence ]
-    for j in range(1, len( sentence_rare ) ):
+    for j in range(1, len( sentence_rare )+1 ):
         word = sentence_rare[ j - 1]
         original_word = sentence[ j - 1]
+        #print "original word", word
         table[ (j-1, j) ] = words[ word ]
         bp[ ( j-1, j ) ] = original_word
         for i in reversed( range(0, (j-2)+1) ):
@@ -140,15 +142,17 @@ if __name__ == "__main__":
 
     for line in sys.stdin:
         sentence = line.split()        
-        #logging.warn( sentence )
+        #print sentence
+        #print 'len', len(sentence)
         (table, bp) = cky_parse( sentence, words, bins )
-        print backtrack(bp, (0, 12, 'SBARQ'))
+        print json.dumps( backtrack(bp, (0, len( sentence ), 'SBARQ')) )
         
-        exit(0)
-        for k,v in sorted( table.iteritems()):
-            print "table", k, v
-        for k,v in sorted( bp.iteritems()):
-            print "bp",k, v
+        #exit(0)
+
+        # for k,v in sorted( table.iteritems()):
+        #     print "table", k, v
+        # for k,v in sorted( bp.iteritems()):
+        #     print "bp",k, v
 
         #hail( sentence, t)
 
